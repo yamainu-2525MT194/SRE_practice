@@ -1,0 +1,6 @@
+# 仮想環境
+venv/
+# ログファイル
+*.log
+# Python キャッシュ
+__pycache__/
