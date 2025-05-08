@@ -1,6 +1,14 @@
-# 仮想環境
+
+# Python 仮想環境
 venv/
-# ログファイル
+# ログファイル（* .log をまるごと除外でも可）
+logs/
 *.log
+
 # Python キャッシュ
 __pycache__/
+*.py[cod]
+
+# OS ごみ
+.DS_Store
+EOF
