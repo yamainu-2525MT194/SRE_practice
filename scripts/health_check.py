@@ -6,10 +6,11 @@
 import time, logging, requests, subprocess, sys
 from pathlib import Path
 from rich.console import Console
+from prometheus_client import Gauge, Counter, start_http_server
 
 # === 監視設定 ===
 URL   = "http://localhost:8080/health"   # ← 後で自分のサービスURLに置換
-INTERVAL = 30                              #秒
+INTERVAL = 10                              #秒
 THRESHOLD     = 5                                 # 連続失敗で再起動
 SERVICE_NAME  = "nginx"                    # restart_service.py へ渡す
 
@@ -20,6 +21,14 @@ logging.basicConfig(filename=LOG_DIR / "health.log",
                     format="%(asctime)s %(levelname)s %(message)s",
                     level=logging.INFO)
 console = Console()
+
+# ─── Prometheus metrics ───
+metric_up            = Gauge("service_up", "1 if healthy else 0")
+metric_fail_streak   = Gauge("consecutive_failures", "連続失敗数")
+metric_restart_total = Counter("restart_count_total", "自動再起動実行回数")
+
+# HTTP server (ポート 9100) で /metrics を公開
+start_http_server(9300)
 
 # === restart_service.py のパス ===
 SCRIPT_ROOT     = Path(__file__).resolve().parents[1]
@@ -37,17 +46,17 @@ while True:
 
     if healthy:
         fails = 0
-        console.print(f"[green]UP[/green] {URL}")
-        logging.info("UP")
+        metric_up.set(1)
     else:
         fails += 1
-        console.print(f"[red]DOWN ({fails}/{THRESHOLD})[/red] {URL}")
-        logging.warning("DOWN")
+        metric_up.set(0)
+        metric_fail_streak.set(fails)
 
     # ----------- 自動再起動ロジック -----------
     if fails >= THRESHOLD:
         console.print(f"[yellow]Restarting {SERVICE_NAME}...[/yellow]")
         logging.warning(f"Trigger restart ({SERVICE_NAME})")
+        metric_restart_total.inc()
 
         completed = subprocess.run(
             [sys.executable, RESTART_SCRIPT, SERVICE_NAME],
